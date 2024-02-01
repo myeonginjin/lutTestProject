@@ -217,6 +217,7 @@ class MainActivity : AppCompatActivity() {
         filterList.addView(sepiaFilter)
         filterList.addView(snowstormFilter)
         mainLayout.addView(filterList)
+
         setContentView(mainLayout)
 
 
@@ -226,7 +227,7 @@ class MainActivity : AppCompatActivity() {
 
 
         grayScaleFilter.setOnClickListener {
-            val inputStreamLUT = assetManager.open("grayscale.jpeg")
+            val inputStreamLUT = assetManager.open("10B01.jpg")
             val lutBitmap: Bitmap = BitmapFactory.decodeStream(inputStreamLUT)
             val filteredBitmap = applyLutToBitmap(originBitmap, lutBitmap)
             imageView.setImageBitmap(filteredBitmap)
@@ -283,46 +284,42 @@ class MainActivity : AppCompatActivity() {
     }
 
 
-
     private fun applyLutToBitmap(src: Bitmap, lutBitmap: Bitmap): Bitmap {
-        // LUT 비트맵에서 색상 값을 가져옴
+        val width = src.width
+        val height = src.height
+        val srcPixels = IntArray(width * height)
+        src.getPixels(srcPixels, 0, width, 0, 0, width, height)
 
-        val lutColors = IntArray(lutBitmap.width * lutBitmap.height)
-        lutBitmap.getPixels(lutColors, 0, lutBitmap.width, 0, 0, lutBitmap.width, lutBitmap.height)
-        val mWidth = src.width
-        val mHeight = src.height
-        val pix = IntArray(mWidth * mHeight)
-        src.getPixels(pix, 0, mWidth, 0, 0, mWidth, mHeight)
+        val lutSize = lutBitmap.width // LUT 이미지의 가로 또는 세로 크기
+        val lutPixels = IntArray(lutSize * lutSize)
+        lutBitmap.getPixels(lutPixels, 0, lutSize, 0, 0, lutSize, lutSize)
 
         // 원본 이미지의 각 픽셀에 대해 LUT를 이용하여 새 색상을 적용
-        for (y in 0 until mHeight) {
-            for (x in 0 until mWidth) {
-                val index = y * mWidth + x
+        for (index in srcPixels.indices) {
+            val pixel = srcPixels[index]
+            val r = (pixel shr 16) and 0xff
+            val g = (pixel shr 8) and 0xff
+            val b = pixel and 0xff
 
-                //COLOR_DISTORTION는 색상 값을 조절하기 위해 사용
-                val r: Int = (pix[index] shr 16 and 0xff) / COLOR_DISTORTION
-                val g: Int = (pix[index] shr 8 and 0xff) / COLOR_DISTORTION
-                val b: Int = (pix[index] and 0xff) / COLOR_DISTORTION
-                val lutIndex: Int = getLutIndex(lutBitmap.width, r, g, b)
+            // LUT 인덱스 계산
+            val lutIndex = getLutIndex(lutSize, r, g, b)
+            val lutPixel = lutPixels[lutIndex]
 
-                // 새로운 색상 값을 계산
-                val R = lutColors[lutIndex] shr 16 and 0xff
-                val G = lutColors[lutIndex] shr 8 and 0xff
-                val B = lutColors[lutIndex] and 0xff
-                pix[index] = -0x1000000 or (R shl 16) or (G shl 8) or B
-            }
+            srcPixels[index] = lutPixel
         }
 
         // 필터가 적용된 비트맵을 생성하고 반환
-        val filteredBitmap = Bitmap.createBitmap(mWidth, mHeight, src.config)
-        filteredBitmap.setPixels(pix, 0, mWidth, 0, 0, mWidth, mHeight)
+        val filteredBitmap = Bitmap.createBitmap(width, height, src.config)
+        filteredBitmap.setPixels(srcPixels, 0, width, 0, 0, width, height)
         return filteredBitmap
     }
 
-    // LUT 인덱스를 계산
-    private fun getLutIndex(lutWidth: Int, redDepth: Int, greenDepth: Int, blueDepth: Int): Int {
-        val lutX: Int = greenDepth % ROW_DEPTH * X_DEPTH + blueDepth
-        val lutY: Int = greenDepth / COLUMN_DEPTH * Y_DEPTH + redDepth
-        return lutY * lutWidth + lutX
+    private fun getLutIndex(lutSize: Int, r: Int, g: Int, b: Int): Int {
+        // LUT 인덱스 계산 로직 수정 필요
+        // 이 예제에서는 단순화를 위해 직접 계산하지 않고, r, g, b 값을 바로 사용
+        // 실제 LUT 구조에 맞게 인덱스 계산 방식을 조정해야함
+        val row = g / 4 // 예시로, G 채널을 기준으로 행을 계산
+        val column = r / 4 // 예시로, R 채널을 기준으로 열을 계산
+        return row * lutSize + column
     }
 }
